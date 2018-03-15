@@ -1,16 +1,33 @@
 package rados
 
-// #cgo LDFLAGS: -lrados
-// #include <errno.h>
-// #include <stdlib.h>
-// #include <rados/librados.h>
-//
-// char* nextChunk(char **idx) {
-// 	char *copy;
-// 	copy = strdup(*idx);
-// 	*idx += strlen(*idx) + 1;
-// 	return copy;
-// }
+/*
+#cgo LDFLAGS: -lrados
+#include <errno.h>
+#include <stdlib.h>
+#include <rados/librados.h>
+
+char* nextChunk(char **idx) {
+	char *copy;
+	copy = strdup(*idx);
+	*idx += strlen(*idx) + 1;
+	return copy;
+}
+
+void add_KV(
+	size_t idx,
+	char *key,
+	char *val,
+	size_t val_len,
+	char **keys,
+    char **vals,
+    size_t *lens) {
+
+	keys[idx] = key;
+	vals[idx] = val;
+	lens[idx] = val_len;
+}
+
+*/
 import "C"
 
 import (
@@ -373,26 +390,17 @@ func (ioctx *IOContext) SetOmap(oid string, pairs map[string][]byte) error {
 
 	i := 0
 	for key, value := range pairs {
-		// key
-		c_key_ptr := (**C.char)(unsafe.Pointer(uintptr(c_keys) + uintptr(i)*ptrSize))
-		*c_key_ptr = C.CString(key)
-		defer C.free(unsafe.Pointer(*c_key_ptr))
-
-		// value and its length
-		c_value_ptr := (**C.char)(unsafe.Pointer(uintptr(c_values) + uintptr(i)*ptrSize))
-
-		var c_length C.size_t
-		if len(value) > 0 {
-			*c_value_ptr = (*C.char)(unsafe.Pointer(&value[0]))
-			c_length = C.size_t(len(value))
-		} else {
-			*c_value_ptr = nil
-			c_length = C.size_t(0)
-		}
-
-		c_length_ptr := (*C.size_t)(unsafe.Pointer(uintptr(c_lengths) + uintptr(i)*ptrSize))
-		*c_length_ptr = c_length
-
+		c_key := C.CString(key)
+		defer C.free(unsafe.Pointer(c_key))
+		C.add_KV(
+			C.size_t(i),
+			C.CString(key),
+			(*C.char)(unsafe.Pointer(&value[0])),
+			C.size_t(len(value)),
+			(**C.char)(c_keys),
+			(**C.char)(c_values),
+			(*C.size_t)(c_lengths),
+		)
 		i++
 	}
 
